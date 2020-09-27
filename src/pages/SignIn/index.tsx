@@ -8,14 +8,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
 
 import { Form } from '@unform/mobile';
 import { FormHandles } from '@unform/core';
+import * as Yup from 'yup';
+import { useAuth } from '../../hooks/Auth';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
+import getValidationErrors from '../../utils/getValidationErrors';
 
 import {
   Container,
@@ -28,14 +32,57 @@ import {
 
 import logoImg from '../../assets/logo.png';
 
+interface SingInFormData {
+  email: string;
+  password: string;
+}
+
 const SignIn: React.FC = () => {
   const formRef = useRef<FormHandles>(null);
   const passwordInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
 
-  const handleSignIn = useCallback((data: object) => {
-    console.log(data);
-  }, []);
+  const { signIn, user } = useAuth();
+
+  console.log(user);
+
+  const handleSignIn = useCallback(
+    async (data: SingInFormData) => {
+      try {
+        formRef.current?.setErrors({}); // limpar os erros anteriores
+
+        // define uma estrutura de validacao para os campos
+        const schema = Yup.object().shape({
+          email: Yup.string()
+            .required('E-mail é obrigatório')
+            .email('Digite um e-mail válido'),
+          password: Yup.string().required('Senha Obrigatória'),
+        });
+
+        // forca a validacao que vai pro catch se estiver ruim
+        await schema.validate(data, {
+          abortEarly: false,
+        });
+
+        await signIn({
+          email: data.email,
+          password: data.password,
+        });
+      } catch (err) {
+        if (err instanceof Yup.ValidationError) {
+          const errors = getValidationErrors(err);
+          formRef.current?.setErrors(errors);
+        }
+        console.log(err);
+
+        Alert.alert(
+          'Erro na autenticação',
+          'Ocorreu um erro ao fazer o login, verifique as credenciais',
+        );
+      }
+    },
+    [signIn],
+  );
 
   return (
     <>
@@ -89,7 +136,11 @@ const SignIn: React.FC = () => {
               </Button>
             </Form>
 
-            <ForgotPassword onPress={() => {}}>
+            <ForgotPassword
+              onPress={() => {
+                console.log('não enche');
+              }}
+            >
               <ForgotPasswordText>Esqueci minha senha</ForgotPasswordText>
             </ForgotPassword>
           </Container>

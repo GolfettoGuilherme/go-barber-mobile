@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-expressions */
-import React, { useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   Image,
   View,
@@ -7,14 +7,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
 
 import { Form } from '@unform/mobile';
 import { FormHandles } from '@unform/core';
+import * as Yup from 'yup';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
+import api from '../../services/api';
 
 import {
   Container,
@@ -24,6 +27,13 @@ import {
 } from './styles';
 
 import logoImg from '../../assets/logo.png';
+import getValidationErrors from '../../utils/getValidationErrors';
+
+interface SingUpFormData {
+  name: string;
+  email: string;
+  password: string;
+}
 
 const SignUp: React.FC = () => {
   const emailInputRef = useRef<TextInput>(null);
@@ -31,6 +41,47 @@ const SignUp: React.FC = () => {
 
   const formRef = useRef<FormHandles>(null);
   const navigation = useNavigation();
+
+  const handleSignUp = useCallback(
+    async (data: SingUpFormData) => {
+      try {
+        formRef.current?.setErrors({}); // limpar os erros anteriores
+
+        // define uma estrutura de validacao para os campos
+        const schema = Yup.object().shape({
+          name: Yup.string().required('Nome é obrigatório'),
+          email: Yup.string()
+            .required('E-mail é obrigatório')
+            .email('Digite um e-mail válido'),
+          password: Yup.string().min(6, 'No minimo 6 digitos'),
+        });
+
+        // forca a validacao que vai pro catch se estiver ruim
+        await schema.validate(data, {
+          abortEarly: false,
+        });
+
+        await api.post('/users', data);
+
+        Alert.alert(
+          'Cadastro realizado com sucesso',
+          'Você ja pode fazer seu login no GoBarber',
+        );
+
+        navigation.goBack();
+      } catch (err) {
+        if (err instanceof Yup.ValidationError) {
+          const errors = getValidationErrors(err);
+          formRef.current?.setErrors(errors);
+          return;
+        }
+        console.log(err);
+        Alert.alert('Erro no cadastro', 'Ocorreu um erro ao fazer o cadastros');
+      }
+    },
+    [navigation],
+  );
+
   return (
     <>
       <KeyboardAvoidingView
@@ -49,14 +100,10 @@ const SignUp: React.FC = () => {
               <Title>Crie sua conta</Title>
             </View>
 
-            <Form
-              ref={formRef}
-              onSubmit={data => {
-                console.log(data);
-              }}
-            >
+            <Form ref={formRef} onSubmit={handleSignUp}>
               <Input
                 autoCapitalize="words"
+                autoCorrect={false}
                 name="name"
                 icon="user"
                 placeholder="Nome"
